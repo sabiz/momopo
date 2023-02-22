@@ -1,18 +1,23 @@
+. "$($PSScriptRoot)\src\Get-Memory-By-Process.ps1"
+. "$($PSScriptRoot)\src\Get-Memory-Usage.ps1"
+. "$($PSScriptRoot)\src\Get-Progress-Bar.ps1"
 
-function momopo:Main() {
+function Main() {
     Clear-Host
-    While($true) { 
-        $memory=momopo:Get-Memory-By-Process
-        $top5=$memory | Select-Object -First 5
-        $usage=momopo:Get-Memory-Usage
+    While($true) {
+        $memoryByProcess=Get-Memory-By-Process
+        $top5=$memoryByProcess | Select-Object -First 5
 
-        # Write-Progress -Activity "Memory Usage :" -Status ('{0:N1} %' -f $usage)  -PercentComplete $usage -Id 1
+        $usage = Get-Memory-Usage
+        $usageText = ("Memory : " + ([Math]::Round(($usage * 100), 2, [MidpointRounding]::AwayFromZero)) + "%  ")
+        $width = [Math]::Floor(($host.UI.RawUI.WindowSize.Width - $usageText.Length) * 0.4)
+        $progressBar = Get-Progress-Bar $width $usage "█" "▒"
 
-        for($i=0; $i -le 7; $i++) {
+        for($i=0; $i -le 10; $i++) {
             momopo:Clear-Line $i
         }
-         
         momopo:Set-Cursor-Pos 0 0
+        Write-Host -NoNewLine ($usageText + $progressBar)
         $top5 | Select-Object "Name", "MemoryUsage" | Format-Table 
         Start-Sleep -m 750
     }
@@ -32,33 +37,4 @@ function momopo:Set-Cursor-Pos($x, $y) {
     $host.UI.RawUI.CursorPosition = $cursorPos
 }
 
-function momopo:Get-Memory-Usage() {
-    Get-CimInstance Win32_OperatingSystem | %{(($_.TotalVisibleMemorySize - $_.FreePhysicalMemory)/$_.TotalVisibleMemorySize) * 100}
-}
-
-
-function momopo:Get-Memory-By-Process() {
-    Get-Process |
-        Group-Object -Property ProcessName |
-        Select-Object "Name", @{n="MemoryUsageBytes"; e={($_.Group | Measure-Object "WS" -Sum).Sum}} |
-        Select-Object "Name", "MemoryUsageBytes", @{n="MemoryUsage"; e={momopo:Format-Memory-Size($_.MemoryUsageBytes)}} |
-        Sort-Object "MemoryUsageBytes" -Descending
-}
-
-function momopo:Format-Memory-Size($SizeInBytes) {
-    $units = "Bytes", "KB", "MB", "GB"
-    $index = 0
-    while ($SizeInBytes -gt 1024 -and $index -le $units.length) {
-        $SizeInBytes /= 1024
-        $index++
-    }
-    if ($index) {
-        return '{0:N2} {1}' -f $SizeInBytes, $units[$index]
-    }
-    return "$SizeInBytes Bytes"
-}
-
-
-
-
-momopo:Main
+Main
